@@ -1,0 +1,67 @@
+---
+firewall_state: started
+firewall_enabled_at_boot: true
+admin_ip: <admin_ip>
+firewall_flush_rules_and_chains: true
+
+
+chains: 
+  - { "name": "INPUT" , "policy": "DROP"}
+  - { "name": "FORWARD", "policy": "DROP"}
+  - { "name": "OUTPUT", "policy": "ACCEPT"}
+
+firewall_allowed_tcp_ports: []
+  #- "80"
+  #- "443"
+firewall_allowed_udp_ports: []
+firewall_forwarded_tcp_ports: []
+firewall_forwarded_udp_ports: []
+firewall_additional_rules:
+  #NAT POSTROUTING rules
+  - iptables --table nat -A POSTROUTING -s 10.0.0.0/8 -j MASQUERADE
+  - iptables --table nat -A POSTROUTING -s 172.16.0.0/12 -j MASQUERADE
+  - iptables --table nat -A POSTROUTING -s 192.168.0.0/16 -j MASQUERADE
+
+  # allowed FORWARD rules
+  - iptables -A FORWARD -s 10.0.0.0/8  -j ACCEPT
+  - iptables -A FORWARD -s 172.16.0.0/12  -j ACCEPT
+  - iptables -A FORWARD -s 192.168.0.0/16 -j ACCEPT
+  - iptables -A FORWARD -s "{{admin_ip}}" -j ACCEPT
+  
+  - iptables -A FORWARD -m conntrack --ctstate ESTABLISHED -d 10.0.0.0/8 -j ACCEPT
+  - iptables -A FORWARD -m conntrack --ctstate ESTABLISHED -d 172.16.0.0/12 -j ACCEPT
+  - iptables -A FORWARD -m conntrack --ctstate ESTABLISHED -d 192.168.0.0/16 -j ACCEPT
+  - iptables -A FORWARD -m conntrack --ctstate ESTABLISHED -d "{{admin_ip}}" -j ACCEPT
+
+  # Allow NTP traffic for time synchronization.
+  - iptables -A OUTPUT -p udp --dport 123 -j ACCEPT
+  - iptables -A INPUT -p udp --sport 123 -j ACCEPT
+
+  # Allow established and related connections:
+  - iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+  # Allow ssh connections from private networks and admin IP
+  - iptables -A INPUT -s "{{admin_ip}}"  -p tcp -m tcp --dport 22 -j ACCEPT
+  - iptables -A INPUT -s 192.168.0.0/16  -p tcp -m tcp --dport 22 -j ACCEPT
+  - iptables -A INPUT -s 172.16.0.0/12  -p tcp -m tcp --dport 22 -j ACCEPT
+  - iptables -A INPUT -s 10.0.0.0/8  -p tcp -m tcp --dport 22 -j ACCEPT
+
+  # Allow ping from private networks and admin IP
+  - iptables -A INPUT -s "{{admin_ip}}"  -p icmp -j ACCEPT
+  - iptables -A INPUT -s 192.168.0.0/16  -p icmp  -j ACCEPT
+  - iptables -A INPUT -s 172.16.0.0/12  -p icmp  -j ACCEPT
+  - iptables -A INPUT -s 10.0.0.0/8  -p icmp  -j ACCEPT
+
+firewall_enable_ipv6: true
+
+firewall_ip6_additional_rules:
+  - ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+  
+# Set to true to log dropped packets
+firewall_log_dropped_packets: true
+# Set to true to ensure other packets are dropped 
+firewall_drop_other_packets: true
+
+# Set to true to ensure other firewall management software is disabled.
+firewall_disable_firewalld: false
+firewall_disable_ufw: false
